@@ -46,9 +46,7 @@
     const params = {};
     window.location.search.substring(1).split("&").forEach(pair => {
       let [key, value] = pair.split("=");
-      if (value) {
-        params[key.toLowerCase()] = decodeURIComponent(value);
-      }
+      if (value) params[key.toLowerCase()] = decodeURIComponent(value);
     });
     return params;
   }
@@ -108,10 +106,13 @@
   const outfitTags = params.outfit ? parseListParam(params.outfit).map(o => 'outfit'+normalizeTag(o)) : [];
   const peopleTags = params.people ? parseListParam(params.people).map(p => 'person'+normalizeTag(p)) : [];
 
+  // Filter images
   const filtered = data.filter(photo => {
     const photoTags = photo.tags.map(normalizeTag);
-    if (orientTags.some(tag => !photoTags.includes(tag))) return false;
-    if (outfitTags.some(tag => !photoTags.includes(tag))) return false;
+    // Orient/orfit match any of the options (OR within category)
+    if (orientTags.length && !orientTags.some(tag => photoTags.includes(tag))) return false;
+    if (outfitTags.length && !outfitTags.some(tag => photoTags.includes(tag))) return false;
+    // People: must include at least one if specified
     if (peopleTags.length && !photoTags.some(tag => peopleTags.includes(tag))) return false;
     return true;
   });
@@ -140,8 +141,7 @@
     nextImg.style.opacity = 0;
     nextImg.classList.add('active');
 
-    // Force reflow to apply transition
-    void nextImg.offsetWidth;
+    void nextImg.offsetWidth; // reflow
 
     nextImg.style.opacity = 1;
     currImg.style.transition = `opacity ${fade}ms ease`;
@@ -151,7 +151,6 @@
       currImg.classList.remove('active');
       active = 1 - active;
       currentIndex = nextIndex;
-
       // Preload the one after next
       const preloadIndex = (currentIndex + 1) % playlist.length;
       preload(playlist[preloadIndex].url);
