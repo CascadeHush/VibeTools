@@ -24,15 +24,10 @@
     max-height: 100%;
     width: auto;
     transform: translate(-50%, -50%);
-    transition: opacity 0.3s ease;
     opacity: 0;
   }
   #slideshow img.active {
     opacity: 1;
-    z-index: 2;
-  }
-  #slideshow img.next {
-    z-index: 1;
   }
 </style>
 </head>
@@ -72,18 +67,13 @@
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    // Enforce no same person twice in a row if more than one person specified
     if (peopleList.length > 1) {
       for (let i = 1; i < shuffled.length; i++) {
-        const prev = shuffled[i-1];
-        const curr = shuffled[i];
-        const prevPerson = prev.tags.find(t => t.startsWith("person"));
-        const currPerson = curr.tags.find(t => t.startsWith("person"));
+        const prevPerson = shuffled[i-1].tags.find(t => t.startsWith("person"));
+        const currPerson = shuffled[i].tags.find(t => t.startsWith("person"));
         if (prevPerson && currPerson && prevPerson === currPerson) {
-          // find a swap candidate later in array
           for (let j = i+1; j < shuffled.length; j++) {
-            const swapCandidate = shuffled[j];
-            const swapPerson = swapCandidate.tags.find(t => t.startsWith("person"));
+            const swapPerson = shuffled[j].tags.find(t => t.startsWith("person"));
             if (swapPerson && swapPerson !== prevPerson) {
               [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
               break;
@@ -118,13 +108,10 @@
   const outfitTags = params.outfit ? parseListParam(params.outfit).map(o => 'outfit'+normalizeTag(o)) : [];
   const peopleTags = params.people ? parseListParam(params.people).map(p => 'person'+normalizeTag(p)) : [];
 
-  // Filter images
   const filtered = data.filter(photo => {
     const photoTags = photo.tags.map(normalizeTag);
-    // Must match all orient/outfit
     if (orientTags.some(tag => !photoTags.includes(tag))) return false;
     if (outfitTags.some(tag => !photoTags.includes(tag))) return false;
-    // People: must include at least one if specified
     if (peopleTags.length && !photoTags.some(tag => peopleTags.includes(tag))) return false;
     return true;
   });
@@ -136,7 +123,6 @@
 
   const playlist = shufflePlaylist(filtered, peopleTags);
 
-  // Slideshow variables
   let currentIndex = 0;
   const imgEls = [document.getElementById("img1"), document.getElementById("img2")];
   let active = 0;
@@ -146,30 +132,42 @@
     img.src = src;
   }
 
-  function showNext() {
-    const nextIndex = (currentIndex + 1) % playlist.length;
+  function crossfade(nextIndex) {
     const nextImg = imgEls[1-active];
+    const currImg = imgEls[active];
     nextImg.src = playlist[nextIndex].url;
+    nextImg.style.transition = `opacity ${fade}ms ease`;
+    nextImg.style.opacity = 0;
     nextImg.classList.add('active');
-    imgEls[active].classList.remove('active');
 
-    active = 1 - active;
-    currentIndex = nextIndex;
+    // Force reflow to apply transition
+    void nextImg.offsetWidth;
 
-    // Preload the one after next
-    const preloadIndex = (currentIndex + 1) % playlist.length;
-    preload(playlist[preloadIndex].url);
+    nextImg.style.opacity = 1;
+    currImg.style.transition = `opacity ${fade}ms ease`;
+    currImg.style.opacity = 0;
+
+    setTimeout(() => {
+      currImg.classList.remove('active');
+      active = 1 - active;
+      currentIndex = nextIndex;
+
+      // Preload the one after next
+      const preloadIndex = (currentIndex + 1) % playlist.length;
+      preload(playlist[preloadIndex].url);
+    }, fade);
   }
 
   // Initialize first image
   imgEls[active].src = playlist[currentIndex].url;
+  imgEls[active].style.opacity = 1;
   imgEls[active].classList.add('active');
-  // Preload next
-  if (playlist.length > 1) preload(playlist[(currentIndex + 1) % playlist.length].url);
+  if (playlist.length > 1) preload(playlist[(currentIndex+1)%playlist.length].url);
 
   // Slideshow loop
   setInterval(() => {
-    showNext();
+    const nextIndex = (currentIndex + 1) % playlist.length;
+    crossfade(nextIndex);
   }, duration*1000);
 
 })();
