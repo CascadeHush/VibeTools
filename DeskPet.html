@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Desktop Pet Slideshow</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: black;
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
+  }
+  #slideshow {
+    position: relative;
+    height: 100%;
+    width: 100%;
+  }
+  #slideshow img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    max-height: 100%;
+    width: auto;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.3s ease;
+    opacity: 0;
+  }
+  #slideshow img.active {
+    opacity: 1;
+    z-index: 2;
+  }
+  #slideshow img.next {
+    z-index: 1;
+  }
+</style>
+</head>
+<body>
+<div id="slideshow">
+  <img id="img1" />
+  <img id="img2" />
+</div>
+<script>
+(async function() {
+  const DEFAULT_DURATION = 5; // seconds
+  const DEFAULT_FADE = 300;   // milliseconds
+  const JSON_FILE = 'flickr_photos.json';
+
+  function getQueryParams() {
+    const params = {};
+    window.location.search.substring(1).split("&").forEach(pair => {
+      let [key, value] = pair.split("=");
+      if (value) {
+        params[key.toLowerCase()] = decodeURIComponent(value);
+      }
+    });
+    return params;
+  }
+
+  function normalizeTag(tag) {
+    return tag.toLowerCase().replace(/[\s-]/g,'');
+  }
+
+  function parseListParam(param) {
+    return param.split(",").map(v => v.trim().toLowerCase());
+  }
+
+  function shufflePlaylist(images, peopleList) {
+    const shuffled = [...images];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    // Enforce no same person twice in a row if more than one person specified
+    if (peopleList.length > 1) {
+      for (let i = 1; i < shuffled.length; i++) {
+        const prev = shuffled[i-1];
+        const curr = shuffled[i];
+        const prevPerson = prev.tags.find(t => t.startsWith("person"));
+        const currPerson = curr.tags.find(t => t.startsWith("person"));
+        if (prevPerson && currPerson && prevPerson === currPerson) {
+          // find a swap candidate later in array
+          for (let j = i+1; j < shuffled.length; j++) {
+            const swapCandidate = shuffled[j];
+            const swapPerson = swapCandidate.tags.find(t => t.startsWith("person"));
+            if (swapPerson && swapPerson !== prevPerson) {
+              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+              break;
+            }
+          }
+        }
+      }
+    }
+    return shuffled;
+  }
+
+  // Load JSON
+  let data;
+  try {
+    const resp = await fetch(JSON_FILE);
+    data = await resp.json();
+  } catch (e) {
+    alert("Error loading JSON file: " + e);
+    return;
+  }
+
+  const params = getQueryParams();
+  if (!params.orient && !params.outfit && !params.people) {
+    alert("At least one of orient, outfit, or people parameters must be specified.");
+    return;
+  }
+
+  const duration = params.duration ? parseFloat(params.duration) : DEFAULT_DURATION;
+  const fade = params.fade ? parseInt(params.fade) : DEFAULT_FADE;
+
+  const orientTags = params.orient ? parseListParam(params.orient).map(o => 'orient'+normalizeTag(o)) : [];
+  const outfitTags = params.outfit ? parseListParam(params.outfit).map(o => 'outfit'+normalizeTag(o)) : [];
+  const peopleTags = params.people ? parseListParam(params.people).map(p => 'person'+normalizeTag(p)) : [];
+
+  // Filter images
+  const filtered = data.filter(photo => {
+    const photoTags = photo.tags.map(normalizeTag);
+    // Must match all orient/outfit
+    if (orientTags.some(tag => !photoTags.includes(tag))) return false;
+    if (outfitTags.some(tag => !photoTags.includes(tag))) return false;
+    // People: must include at least one if specified
+    if (peopleTags.length && !photoTags.some(tag => peopleTags.includes(tag))) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    alert("No images match the specified filters.");
+    return;
+  }
+
+  const playlist = shufflePlaylist(filtered, peopleTags);
+
+  // Slideshow variables
+  let currentIndex = 0;
+  const imgEls = [document.getElementById("img1"), document.getElementById("img2")];
+  let active = 0;
+
+  function preload(src) {
+    const img = new Image();
+    img.src = src;
+  }
+
+  function showNext() {
+    const nextIndex = (currentIndex + 1) % playlist.length;
+    const nextImg = imgEls[1-active];
+    nextImg.src = playlist[nextIndex].url;
+    nextImg.classList.add('active');
+    imgEls[active].classList.remove('active');
+
+    active = 1 - active;
+    currentIndex = nextIndex;
+
+    // Preload the one after next
+    const preloadIndex = (currentIndex + 1) % playlist.length;
+    preload(playlist[preloadIndex].url);
+  }
+
+  // Initialize first image
+  imgEls[active].src = playlist[currentIndex].url;
+  imgEls[active].classList.add('active');
+  // Preload next
+  if (playlist.length > 1) preload(playlist[(currentIndex + 1) % playlist.length].url);
+
+  // Slideshow loop
+  setInterval(() => {
+    showNext();
+  }, duration*1000);
+
+})();
+</script>
+</body>
+</html>
