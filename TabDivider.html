@@ -1,4 +1,95 @@
 <!DOCTYPE html>
+<!--
+===========================================================================
+FORMAL SPECIFICATION: DIVIDER TAB PAGE
+===========================================================================
+
+Overview:
+---------
+This single-file web page allows the user to create "divider" tabs for 
+organizing browser tabs. Each divider consists of a title, an optional 
+emoji icon, and an optional freeform note. The page can be used locally 
+or hosted on a static site (e.g., GitHub Pages). No backend is required.
+
+Main Features:
+--------------
+1. **Divider Creation**
+   - User enters a "tab title" in an input box.
+   - User optionally adds a "note" in a multi-line textarea.
+   - User selects an emoji from a grid (16 emoji options currently).
+   - Clicking "Create" generates a URL with query parameters:
+       - title (string, URL-encoded)
+       - icon (emoji, URL-encoded)
+       - note (string, URL-encoded)
+   - The page reloads to display a preview of the divider with the selected emoji, title, and note.
+
+2. **Tab Title Formatting**
+   - The HTML document title is set to: 
+     --- [title] ---
+     Example: "--- My Section ---"
+   - Favicon is set dynamically using an SVG containing the selected emoji.
+
+3. **Persistence**
+   - Last selected emoji is saved to `localStorage` on "Create".
+   - When opening a new divider, the saved emoji is pre-selected.
+
+4. **New Divider**
+   - "New Divider" button opens a new browser tab with a fresh entry page.
+   - The pre-selected emoji is loaded from `localStorage`.
+   - Title and note fields are empty by default.
+
+5. **Layout & Styling**
+   - Card width: 540px (max-width: 90vw), centered vertically and horizontally.
+   - Inputs and textarea stretch to full width within card.
+   - Emoji grid: 8 columns, centered emojis.
+   - Inputs, textarea, and button have rounded borders and padding.
+   - About section below card (editable), shows brief description of the page.
+   - Dark theme color scheme with accent color for selected emoji and buttons.
+   - Preview uses white-space: pre-wrap to maintain line breaks.
+
+6. **Security / Escaping**
+   - All user input (title and note) is escaped for HTML to prevent injection:
+     &, <, >, ", '
+   - No backend; all state is stored in URL query parameters or localStorage.
+
+7. **URL Parameters**
+   - `title`: string, required
+   - `icon`: emoji string, optional (defaults to 📁)
+   - `note`: string, optional
+   Example URL: `divider.html?title=Section%201&icon=📌&note=Reminder%0ACheck%20tabs`
+
+8. **Behavior**
+   - If URL contains `title`, page displays the divider preview.
+   - If URL contains no `title`, page displays the entry form with:
+       - Title input
+       - Note textarea
+       - Emoji selector grid
+       - Create button
+       - Live preview
+   - Clicking Create navigates to URL with query parameters.
+   - Clicking New Divider opens a fresh page (new tab) with defaults.
+
+9. **Browser Compatibility**
+    - Tested on modern Chromium and Firefox.
+    - Works locally via file:// and hosted as static page (e.g., GitHub Pages).
+
+10. **Extensibility**
+    - Emoji list is an array at the top of the script; new emojis can be added.
+    - Card width, font sizes, and colors can be adjusted via CSS variables.
+    - localStorage allows future features like last-used title/note or default templates.
+
+11. **Future Notes**
+    - Optional enhancements could include:
+       - Save templates of dividers in localStorage
+       - Custom colors for dividers
+       - Keyboard shortcuts
+       - Clone existing divider
+       - Compact mode for minimal tab labeling
+
+===========================================================================
+END SPECIFICATION
+===========================================================================
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
