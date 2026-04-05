@@ -16,72 +16,42 @@
     position: relative;
     height: 100%;
     width: 100%;
+    background: black;
   }
-  #slideshow img {
+  canvas {
     position: absolute;
     top: 50%;
     left: 50%;
-    max-height: 100%;
-    width: auto;
     transform: translate(-50%, -50%);
-    opacity: 0;
-  }
-  #slideshow img.active {
-    opacity: 1;
+    /* Ensure smooth scaling */
+    image-rendering: auto;
   }
 </style>
 </head>
 <body>
 <div id="slideshow">
-  <img id="img1" />
-  <img id="img2" />
+  <canvas id="canvas1"></canvas>
+  <canvas id="canvas2"></canvas>
 </div>
+
 <script>
 (async function() {
   const DEFAULT_DURATION = 5; // seconds
   const DEFAULT_FADE = 300;   // milliseconds
+  const DEFAULT_WIDTH = 954;  // nominal portrait width
+  const DEFAULT_HEIGHT = 1552; // nominal portrait height
   const JSON_FILE = 'flickr_photos.json';
 
-  function getQueryParams() {
-    const params = {};
-    window.location.search.substring(1).split("&").forEach(pair => {
-      let [key, value] = pair.split("=");
-      if (value) params[key.toLowerCase()] = decodeURIComponent(value);
-    });
-    return params;
-  }
+  const params = Object.fromEntries(new URLSearchParams(window.location.search));
 
-  function normalizeTag(tag) {
-    return tag.toLowerCase().replace(/[\s-]/g,'');
-  }
+  const duration = params.duration ? parseFloat(params.duration) : DEFAULT_DURATION;
+  const fade = params.fade ? parseInt(params.fade) : DEFAULT_FADE;
+  const imgWidth = params.imgwidth ? parseInt(params.imgwidth) : DEFAULT_WIDTH;
+  const imgHeight = params.imgheight ? parseInt(params.imgheight) : DEFAULT_HEIGHT;
 
-  function parseListParam(param) {
-    return param.split(",").map(v => v.trim().toLowerCase());
-  }
-
-  function shufflePlaylist(images, peopleList) {
-    const shuffled = [...images];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    if (peopleList.length > 1) {
-      for (let i = 1; i < shuffled.length; i++) {
-        const prevPerson = shuffled[i-1].tags.find(t => t.startsWith("person"));
-        const currPerson = shuffled[i].tags.find(t => t.startsWith("person"));
-        if (prevPerson && currPerson && prevPerson === currPerson) {
-          for (let j = i+1; j < shuffled.length; j++) {
-            const swapPerson = shuffled[j].tags.find(t => t.startsWith("person"));
-            if (swapPerson && swapPerson !== prevPerson) {
-              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-              break;
-            }
-          }
-        }
-      }
-    }
-    return shuffled;
-  }
+  const orientTags = params.orient ? params.orient.split(',').map(s=>s.trim().toLowerCase()).map(o=>'orient'+o.replace(/[\s-]/g,'')) : [];
+  const outfitTags = params.outfit ? params.outfit.split(',').map(s=>s.trim().toLowerCase()).map(o=>'outfit'+o.replace(/[\s-]/g,'')) : [];
+  const peopleTags = params.people ? params.people.split(',').map(s=>s.trim().toLowerCase()).map(p=>'person'+p.replace(/[\s-]/g,'')) : [];
 
   // Load JSON
   let data;
@@ -89,83 +59,120 @@
     const resp = await fetch(JSON_FILE);
     data = await resp.json();
   } catch (e) {
-    alert("Error loading JSON file: " + e);
+    alert("Error loading JSON: "+e);
     return;
   }
-
-  const params = getQueryParams();
-  if (!params.orient && !params.outfit && !params.people) {
-    alert("At least one of orient, outfit, or people parameters must be specified.");
-    return;
-  }
-
-  const duration = params.duration ? parseFloat(params.duration) : DEFAULT_DURATION;
-  const fade = params.fade ? parseInt(params.fade) : DEFAULT_FADE;
-
-  const orientTags = params.orient ? parseListParam(params.orient).map(o => 'orient'+normalizeTag(o)) : [];
-  const outfitTags = params.outfit ? parseListParam(params.outfit).map(o => 'outfit'+normalizeTag(o)) : [];
-  const peopleTags = params.people ? parseListParam(params.people).map(p => 'person'+normalizeTag(p)) : [];
 
   // Filter images
-  const filtered = data.filter(photo => {
-    const photoTags = photo.tags.map(normalizeTag);
-    // Orient/orfit match any of the options (OR within category)
-    if (orientTags.length && !orientTags.some(tag => photoTags.includes(tag))) return false;
-    if (outfitTags.length && !outfitTags.some(tag => photoTags.includes(tag))) return false;
-    // People: must include at least one if specified
-    if (peopleTags.length && !photoTags.some(tag => peopleTags.includes(tag))) return false;
+  const filtered = data.filter(photo=>{
+    const photoTags = photo.tags.map(t=>t.toLowerCase().replace(/[\s-]/g,''));
+    if (orientTags.length && !orientTags.some(tag=>photoTags.includes(tag))) return false;
+    if (outfitTags.length && !outfitTags.some(tag=>photoTags.includes(tag))) return false;
+    if (peopleTags.length && !photoTags.some(tag=>peopleTags.includes(tag))) return false;
     return true;
   });
 
   if (!filtered.length) {
-    alert("No images match the specified filters.");
+    alert("No images match filters.");
     return;
+  }
+
+  // Shuffle with no same person back-to-back
+  function shufflePlaylist(images, people) {
+    const arr = [...images];
+    for (let i=arr.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    if(people.length>1){
+      for(let i=1;i<arr.length;i++){
+        const prev = arr[i-1].tags.find(t=>t.startsWith('person'));
+        const curr = arr[i].tags.find(t=>t.startsWith('person'));
+        if(prev && curr && prev===curr){
+          for(let j=i+1;j<arr.length;j++){
+            const swap = arr[j].tags.find(t=>t.startsWith('person'));
+            if(swap && swap!==prev){ [arr[i],arr[j]]=[arr[j],arr[i]]; break; }
+          }
+        }
+      }
+    }
+    return arr;
   }
 
   const playlist = shufflePlaylist(filtered, peopleTags);
 
-  let currentIndex = 0;
-  const imgEls = [document.getElementById("img1"), document.getElementById("img2")];
+  const canvases = [document.getElementById('canvas1'), document.getElementById('canvas2')];
+  canvases.forEach(c=>{
+    c.width = imgWidth;
+    c.height = imgHeight;
+    c.style.width = imgWidth+'px';
+    c.style.height = imgHeight+'px';
+  });
+
   let active = 0;
+  let currentIndex = 0;
 
   function preload(src) {
     const img = new Image();
     img.src = src;
+    return img;
   }
 
-  function crossfade(nextIndex) {
-    const nextImg = imgEls[1-active];
-    const currImg = imgEls[active];
-    nextImg.src = playlist[nextIndex].url;
-    nextImg.style.transition = `opacity ${fade}ms ease`;
-    nextImg.style.opacity = 0;
-    nextImg.classList.add('active');
+  async function drawImageOnCanvas(img, canvas, opacity=1) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.globalAlpha = opacity;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
-    void nextImg.offsetWidth; // reflow
+    const scale = Math.min(canvas.width/img.width, canvas.height/img.height);
+    const w = img.width*scale;
+    const h = img.height*scale;
+    const x = (canvas.width-w)/2;
+    const y = (canvas.height-h)/2;
+    ctx.drawImage(img,x,y,w,h);
+    ctx.globalAlpha = 1; // reset
+  }
 
-    nextImg.style.opacity = 1;
-    currImg.style.transition = `opacity ${fade}ms ease`;
-    currImg.style.opacity = 0;
+  async function crossfade(nextIndex) {
+    const nextCanvas = canvases[1-active];
+    const currCanvas = canvases[active];
+    const nextImg = preload(playlist[nextIndex].url);
 
-    setTimeout(() => {
-      currImg.classList.remove('active');
-      active = 1 - active;
-      currentIndex = nextIndex;
-      // Preload the one after next
-      const preloadIndex = (currentIndex + 1) % playlist.length;
-      preload(playlist[preloadIndex].url);
-    }, fade);
+    await nextImg.decode(); // ensure loaded
+
+    const steps = Math.ceil(fade/16); // ~60fps
+    let step = 0;
+
+    function animate() {
+      step++;
+      const opacity = step/steps;
+      drawImageOnCanvas(nextImg, nextCanvas, opacity);
+      drawImageOnCanvas(preload(playlist[currentIndex].url), currCanvas, 1-opacity);
+      if(step<steps) requestAnimationFrame(animate);
+      else {
+        active = 1-active;
+        currentIndex = nextIndex;
+      }
+    }
+    animate();
+
+    // Preload the one after next
+    const preloadIndex = (currentIndex+1)%playlist.length;
+    preload(playlist[preloadIndex].url);
   }
 
   // Initialize first image
-  imgEls[active].src = playlist[currentIndex].url;
-  imgEls[active].style.opacity = 1;
-  imgEls[active].classList.add('active');
-  if (playlist.length > 1) preload(playlist[(currentIndex+1)%playlist.length].url);
+  const firstImg = preload(playlist[0].url);
+  await firstImg.decode();
+  await drawImageOnCanvas(firstImg, canvases[active]);
+
+  // Preload second
+  if(playlist.length>1) preload(playlist[1].url);
 
   // Slideshow loop
-  setInterval(() => {
-    const nextIndex = (currentIndex + 1) % playlist.length;
+  setInterval(()=>{
+    const nextIndex = (currentIndex+1)%playlist.length;
     crossfade(nextIndex);
   }, duration*1000);
 
