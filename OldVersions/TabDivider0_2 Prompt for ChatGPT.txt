@@ -1,0 +1,213 @@
+I have the following single file web page that I use as a tab divider in my browser. I can enter some text and it shows up as a tab I can move around to keep things organised visually. I want the following changes made:
+1. The emoji icons on the selector need to be about twice the dimensions (I think that would be 4 times the point size)
+2. Below the icon selector, I need a comment box. It should allow for free form text entry including use of the enter key to start a new line (hence enter should not finalise entry or move out of the text box). That note text then needs to be added to the URL just as the other items are
+3. After entering the text, the page reloads/redraws with the title text, etc. This will need to be updated to show the note text as well. I also want a button on this updated page to open another copy of the entry/black page, so I can easily create another divider. 
+4. Include an 'about' section below the main box with a brief description of the page, I can edit it later. This should apear on both the initial entry version and the refreshed output version.
+5. The title text for the result page (i.e. the text that will appear on the tab) should be surrounded by "--- " and " ---" to better deliniated it from other tabs and make it stand out as a divider
+
+The original idea was to just open this as a local file but that has issues, so I plan to host it on github pages. I don't know if the inputs need to be sanitised. I won't have any databases or other stuff on the server that could be hacked via freeform text input. Im also not sure if the web page needs any changes to support being 'live' as opposed to a local static file.
+
+Let me know if you need more context as to what the page does and why. I lost the original chat window with the original conversation
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Divider</title>
+
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #1a1d24;
+    --accent: #4ade80;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+  }
+
+  body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+  }
+
+  .card {
+    background: var(--card);
+    padding: 30px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    width: 340px;
+  }
+
+  h1 {
+    font-size: 18px;
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    margin-bottom: 15px;
+    font-size: 16px;
+    background: #0b0d12;
+    color: var(--text);
+  }
+
+  .emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+    margin-bottom: 15px;
+  }
+
+  .emoji {
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    text-align: center;
+    transition: 0.15s;
+  }
+
+  .emoji:hover {
+    background: #2a2f3a;
+  }
+
+  .emoji.selected {
+    background: var(--accent);
+    color: black;
+  }
+
+  button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: black;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .preview {
+    margin-top: 20px;
+    text-align: center;
+    opacity: 0.8;
+  }
+
+  .preview span {
+    font-size: 28px;
+    display: block;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="card" id="app"></div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const titleParam = params.get("title");
+const iconParam = params.get("icon");
+
+const emojis = ["📁","📂","🗂️","📌","⭐","🔥","💡","🚧","🧠","⚡","📊","📝","🔖","🎯","🚀","📎"];
+
+function setFavicon(emoji) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <text y="0.9em" font-size="90">${emoji}</text>
+    </svg>
+  `;
+  const url = "data:image/svg+xml," + encodeURIComponent(svg);
+
+  let link = document.querySelector("link[rel~='icon']");
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
+  }
+  link.href = url;
+}
+
+const app = document.getElementById("app");
+
+if (titleParam) {
+  const emoji = iconParam || "📁";
+
+  document.title = titleParam;
+  setFavicon(emoji);
+
+  app.innerHTML = `
+    <div class="preview">
+      <span>${emoji}</span>
+      ${titleParam}
+    </div>
+  `;
+} else {
+  let selectedEmoji = "📁";
+
+  app.innerHTML = `
+    <h1>Create Divider</h1>
+    <input id="titleInput" placeholder="Enter tab name..." autofocus />
+
+    <div class="emoji-grid" id="emojiGrid"></div>
+
+    <button id="createBtn">Create</button>
+
+    <div class="preview" id="preview">
+      <span>📁</span>
+      Preview
+    </div>
+  `;
+
+  const grid = document.getElementById("emojiGrid");
+  const preview = document.getElementById("preview");
+  const input = document.getElementById("titleInput");
+
+  emojis.forEach(e => {
+    const div = document.createElement("div");
+    div.className = "emoji";
+    div.textContent = e;
+
+    if (e === selectedEmoji) div.classList.add("selected");
+
+    div.onclick = () => {
+      selectedEmoji = e;
+      document.querySelectorAll(".emoji").forEach(el => el.classList.remove("selected"));
+      div.classList.add("selected");
+      updatePreview();
+    };
+
+    grid.appendChild(div);
+  });
+
+  function updatePreview() {
+    preview.innerHTML = `
+      <span>${selectedEmoji}</span>
+      ${input.value || "Preview"}
+    `;
+  }
+
+  input.addEventListener("input", updatePreview);
+
+  document.getElementById("createBtn").onclick = () => {
+    const title = input.value.trim();
+    if (!title) return;
+
+    const url = `?title=${encodeURIComponent(title)}&icon=${encodeURIComponent(selectedEmoji)}`;
+    location.search = url;
+  };
+}
+</script>
+
+</body>
+</html>

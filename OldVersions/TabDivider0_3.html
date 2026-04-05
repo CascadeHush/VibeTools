@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Divider</title>
+
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #1a1d24;
+    --accent: #4ade80;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+  }
+
+.card {
+  background: var(--card);
+  padding: 30px;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  width: 540px; /* increased ~50% */
+  max-width: 90vw;
+  text-align: center; /* ensures consistent centering */
+}
+
+  h1 {
+    font-size: 18px;
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+input, textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  margin-bottom: 15px;
+  font-size: 16px;
+  background: #0b0d12;
+  color: var(--text);
+  box-sizing: border-box; /* important for proper width */
+}
+
+  textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 10px;
+  margin-bottom: 15px;
+  justify-items: center; /* centers emojis in cells */
+}
+
+  .emoji {
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    text-align: center;
+    transition: 0.15s;
+    font-size: 28px; /* bigger emojis */
+  }
+
+  .emoji:hover {
+    background: #2a2f3a;
+  }
+
+  .emoji.selected {
+    background: var(--accent);
+    color: black;
+  }
+
+  button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: black;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+
+  .preview {
+    margin-top: 20px;
+    text-align: center;
+    opacity: 0.8;
+    white-space: pre-wrap;
+  }
+
+  .preview span {
+    font-size: 28px;
+    display: block;
+  }
+
+  .about {
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="card" id="app"></div>
+
+<div class="about">
+  This page creates visual tab dividers using emoji and text.  
+  Use it to organise browser tabs into sections.  
+  (Edit this text however you like.)
+</div>
+
+<script>
+function escapeHTML(str) {
+  return str.replace(/[&<>"']/g, tag => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[tag]));
+}
+
+const params = new URLSearchParams(location.search);
+const titleParam = params.get("title");
+const iconParam = params.get("icon");
+const noteParam = params.get("note");
+
+const emojis = ["📁","📂","🗂️","📌","⭐","🔥","💡","🚧","🧠","⚡","📊","📝","🔖","🎯","🚀","📎"];
+
+function setFavicon(emoji) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <text y="0.9em" font-size="90">${emoji}</text>
+    </svg>
+  `;
+  const url = "data:image/svg+xml," + encodeURIComponent(svg);
+
+  let link = document.querySelector("link[rel~='icon']");
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
+  }
+  link.href = url;
+}
+
+const app = document.getElementById("app");
+
+if (titleParam) {
+  const emoji = iconParam || "📁";
+  const safeTitle = escapeHTML(titleParam);
+  const safeNote = noteParam ? escapeHTML(noteParam) : "";
+
+  document.title = `--- ${titleParam} ---`;
+  setFavicon(emoji);
+
+  app.innerHTML = `
+    <div class="preview">
+      <span>${emoji}</span>
+      ${safeTitle}
+      ${safeNote ? `<div style="margin-top:10px;font-size:14px;color:#9ca3af;">${safeNote}</div>` : ""}
+    </div>
+
+    <button onclick="window.open(location.pathname, '_blank')">
+      New Divider
+    </button>
+  `;
+} else {
+  let selectedEmoji = "📁";
+
+  app.innerHTML = `
+    <h1>Create Divider</h1>
+    <input id="titleInput" placeholder="Enter tab name..." autofocus />
+
+    <textarea id="noteInput" placeholder="Add notes (optional)..."></textarea>
+
+    <div class="emoji-grid" id="emojiGrid"></div>
+
+    <button id="createBtn">Create</button>
+
+    <div class="preview" id="preview">
+      <span>📁</span>
+      Preview
+    </div>
+  `;
+
+  const grid = document.getElementById("emojiGrid");
+  const preview = document.getElementById("preview");
+  const input = document.getElementById("titleInput");
+  const noteInput = document.getElementById("noteInput");
+
+  emojis.forEach(e => {
+    const div = document.createElement("div");
+    div.className = "emoji";
+    div.textContent = e;
+
+    if (e === selectedEmoji) div.classList.add("selected");
+
+    div.onclick = () => {
+      selectedEmoji = e;
+      document.querySelectorAll(".emoji").forEach(el => el.classList.remove("selected"));
+      div.classList.add("selected");
+      updatePreview();
+    };
+
+    grid.appendChild(div);
+  });
+
+  function updatePreview() {
+    preview.innerHTML = `
+      <span>${selectedEmoji}</span>
+      ${input.value || "Preview"}
+    `;
+  }
+
+  input.addEventListener("input", updatePreview);
+
+  document.getElementById("createBtn").onclick = () => {
+    const title = input.value.trim();
+    const note = noteInput.value.trim();
+
+    if (!title) return;
+
+    const url = `?title=${encodeURIComponent(title)}&icon=${encodeURIComponent(selectedEmoji)}&note=${encodeURIComponent(note)}`;
+    location.search = url;
+  };
+}
+</script>
+
+</body>
+</html>
